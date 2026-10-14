@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="theme-color" content="#0b3d6e">
+<title>SkillPin</title>
+<link rel="manifest" href="manifest.json">
+<link rel="icon" href="icon-192.png">
+<link rel="apple-touch-icon" href="icon-192.png">
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<style>
+  html,body{height:100%;margin:0;font-family:sans-serif}
+  #bar{background:#0b3d6e;color:#fff;padding:10px 12px;display:flex;align-items:center;gap:8px;height:30px}
+  #bar b{font-size:20px;flex:1} #bar b span{color:#f58220}
+  #bar select,#bar button{font-size:14px;padding:6px;border-radius:6px;border:0}
+  #bar button{background:#f58220;color:#fff;font-weight:bold}
+  #map{height:calc(100% - 50px)}
+  #hint{display:none;position:absolute;top:56px;left:10px;right:10px;z-index:1000;background:#f58220;color:#fff;padding:10px;border-radius:8px;text-align:center;font-weight:bold}
+  #form{display:none;position:absolute;bottom:0;left:0;right:0;z-index:1001;background:#fff;padding:14px;border-radius:16px 16px 0 0;box-shadow:0 -4px 16px rgba(0,0,0,.3)}
+  #form input,#form select{width:100%;box-sizing:border-box;font-size:16px;padding:10px;margin:5px 0;border:1px solid #bbb;border-radius:8px}
+  #form button{font-size:16px;padding:10px 16px;border:0;border-radius:8px;margin-top:6px}
+  #save{background:#0b3d6e;color:#fff} #cancel{background:#ddd}
+</style>
+</head>
+<body>
+<div id="bar">
+  <b>Skill<span>Pin</span></b>
+  <select id="filter"><option value="">All jobs</option></select>
+  <button id="post">+ Post job</button>
+</div>
+<div id="hint">Tap the map where the job is</div>
+<div id="map"></div>
+<div id="form">
+  <b>New job</b>
+  <input id="title" placeholder="Job title (e.g. Fix leaking tap)">
+  <select id="cat"></select>
+  <input id="pay" placeholder="Pay (e.g. $20)">
+  <input id="phone" placeholder="Phone number" type="tel">
+  <button id="save">Save job</button>
+  <button id="cancel">Cancel</button>
+</div>
+<script>
+var CATS=['Electrician','Plumber','Carpenter','Painter','Builder / Bricklayer','Tiler','Roofer','Welder','Gardener','Cleaner','Pest control','Borehole / pump repair','Mechanic','Appliance repair','Movers / loaders','Fence / gate installation'];
+
+function esc(s){return String(s).replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];});}
+
+var jobs=[];
+try{jobs=JSON.parse(localStorage.getItem('skillpin_jobs')||'[]');}catch(e){}
+if(!jobs.length){jobs=[
+  {title:'Fix leaking tap',category:'Plumber',pay:'$10',phone:'',lat:-17.8292,lng:31.0522},
+  {title:'Wire a new room',category:'Electrician',pay:'$25',phone:'',lat:-17.8216,lng:31.0492},
+  {title:'Paint 2 bedrooms',category:'Painter',pay:'$40',phone:'',lat:-17.8350,lng:31.0600}
+];}
+function save(){try{localStorage.setItem('skillpin_jobs',JSON.stringify(jobs));}catch(e){}}
+
+var map=L.map('map').setView([-17.8292,31.0522],13);
+L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19,attribution:'© OpenStreetMap'}).addTo(map);
+var layer=L.layerGroup().addTo(map);
+
+var filter=document.getElementById('filter'),cat=document.getElementById('cat');
+CATS.forEach(function(c){
+  filter.innerHTML+='<option>'+c+'</option>';
+  cat.innerHTML+='<option>'+c+'</option>';
+});
+
+function render(){
+  layer.clearLayers();
+  jobs.forEach(function(j){
+    if(filter.value && j.category!==filter.value) return;
+    var html='<b>'+esc(j.title)+'</b><br>'+esc(j.category)+'<br>'+esc(j.pay);
+    if(j.phone) html+='<br><a href="tel:'+esc(j.phone)+'">Call '+esc(j.phone)+'</a>';
+    L.marker([j.lat,j.lng]).addTo(layer).bindPopup(html);
+  });
+}
+filter.onchange=render;
+render();
+
+var picking=false,spot=null,hint=document.getElementById('hint'),form=document.getElementById('form');
+document.getElementById('post').onclick=function(){picking=true;hint.style.display='block';};
+map.on('click',function(e){
+  if(!picking) return;
+  picking=false;hint.style.display='none';
+  spot=e.latlng;form.style.display='block';
+});
+document.getElementById('cancel').onclick=function(){form.style.display='none';};
+document.getElementById('save').onclick=function(){
+  var t=document.getElementById('title').value.trim();
+  if(!t){alert('Please enter a job title');return;}
+  jobs.push({title:t,category:cat.value,pay:document.getElementById('pay').value,phone:document.getElementById('phone').value,lat:spot.lat,lng:spot.lng});
+  save();render();
+  form.style.display='none';
+  ['title','pay','phone'].forEach(function(i){document.getElementById(i).value='';});
+};
+
+if('serviceWorker' in navigator){
+  window.addEventListener('load',function(){
+    navigator.serviceWorker.register('sw.js').catch(function(){});
+  });
+}
+</script>
+</body>
+</html>
